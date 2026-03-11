@@ -6,7 +6,7 @@ from typing import List, Dict, Any
 import uuid
 
 from src.config import settings
-from src.database import get_db, Document, Embedding
+from src.database import get_db, Document, Embedding, SessionLocal
 from src.models import FileResponse
 from src.services.indexer import Indexer
 
@@ -25,16 +25,18 @@ def get_database_session():
         db.close()
 
 @router.post("/documents/{file_id}/index")
-def index_document(file_id: str, db: Session = Depends(get_database_session)):
+def index_document(file_id: str):
     """Index a document for semantic search."""
     logger.info(f"Starting indexing for file ID: {file_id}")
     
-    doc = db.query(Document).filter(Document.id == file_id).first()
-    
-    if not doc:
-        raise HTTPException(status_code=404, detail="File not found")
-    
+    # Get database session
+    db = SessionLocal()
     try:
+        doc = db.query(Document).filter(Document.id == file_id).first()
+        
+        if not doc:
+            raise HTTPException(status_code=404, detail="File not found")
+        
         logger.info(f"Reading file: {doc.filename} ({doc.content_path})")
         
         # Read file content with error handling for different encodings
@@ -50,33 +52,51 @@ def index_document(file_id: str, db: Session = Depends(get_database_session)):
         
         logger.info(f"File read successfully. Content length: {len(content)} characters")
         
+        # Clean NUL characters from content (common in binary files like DOCX)
+        content = content.replace('\x00', '')
+        logger.info(f"Content cleaned (NUL chars removed). New length: {len(content)} characters")
+        
         # Create indexer and process document
         indexer = Indexer()
         chunks = indexer.chunk_text(content)
         
         logger.info(f"Text chunked into {len(chunks)} parts")
         
-        logger.info(f"Generating embeddings for {len(chunks)} chunks...")
-        
-        # Store embeddings
-        for i, chunk in enumerate(chunks):
-            logger.info(f"Processing chunk {i+1}/{len(chunks)} (length: {len(chunk)} chars)")
+        # Use batch processing for embeddings (much faster)
+        if len(chunks) > 1:
+            logger.info(f"Generating embeddings in batch for {len(chunks)} chunks...")
+            embeddings = indexer.get_embeddings_batch(chunks)
             
-            embedding = indexer.get_embedding(chunk)
-            
-            # Build metadata
-            metadata = build_metadata(doc, chunk, i)
-            
-            # Store in database
-            emb = Embedding(
-                id=str(uuid.uuid4()),
-                text=chunk,
-                meta_data=metadata,
-                embedding=embedding,
-                document_id=file_id,
-                chunk_index=i
-            )
-            db.add(emb)
+            for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+                metadata = build_metadata(doc, chunk, i)
+                
+                emb = Embedding(
+                    id=str(uuid.uuid4()),
+                    text=chunk,
+                    meta_data=metadata,
+                    embedding=embedding,
+                    document_id=file_id,
+                    chunk_index=i
+                )
+                db.add(emb)
+        else:
+            # Single chunk - use original method
+            for i, chunk in enumerate(chunks):
+                logger.info(f"Processing chunk {i+1}/{len(chunks)} (length: {len(chunk)} chars)")
+                
+                embedding = indexer.get_embedding(chunk)
+                
+                metadata = build_metadata(doc, chunk, i)
+                
+                emb = Embedding(
+                    id=str(uuid.uuid4()),
+                    text=chunk,
+                    meta_data=metadata,
+                    embedding=embedding,
+                    document_id=file_id,
+                    chunk_index=i
+                )
+                db.add(emb)
         
         logger.info(f"Committing {len(chunks)} embeddings to database...")
         
@@ -89,7 +109,10 @@ def index_document(file_id: str, db: Session = Depends(get_database_session)):
         return {"success": True, "message": f"Document {file_id} indexed successfully", "chunks": len(chunks)}
     
     except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=500, detail=f"Error indexing document: {str(e)}")
+    finally:
+        db.close()
 
 @router.post("/all")
 def index_all_documents(background_tasks: BackgroundTasks, db: Session = Depends(get_database_session)):
@@ -127,23 +150,45 @@ def process_indexing(db: Session, docs: List[Document]):
                 continue
             
             chunks = indexer.chunk_text(content)
+            # Clean NUL characters from content (common in binary files like DOCX)
+            content = content.replace('\x00', '')
+            chunks = indexer.chunk_text(content)
             logger.info(f"[{idx+1}/{len(docs)}] Chunked into {len(chunks)} parts")
             
-            for i, chunk in enumerate(chunks):
-                logger.info(f"[{idx+1}/{len(docs)}] Processing chunk {i+1}/{len(chunks)} (length: {len(chunk)} chars)")
+            # Use batch processing for embeddings (much faster)
+            if len(chunks) > 1:
+                logger.info(f"[{idx+1}/{len(docs)}] Generating embeddings in batch for {len(chunks)} chunks...")
+                embeddings = indexer.get_embeddings_batch(chunks)
                 
-                embedding = indexer.get_embedding(chunk)
-                metadata = build_metadata(doc, chunk, i)
-                
-                emb = Embedding(
-                    id=str(uuid.uuid4()),
-                    text=chunk,
-                    meta_data=metadata,
-                    embedding=embedding,
-                    document_id=doc.id,
-                    chunk_index=i
-                )
-                db.add(emb)
+                for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+                    metadata = build_metadata(doc, chunk, i)
+                    
+                    emb = Embedding(
+                        id=str(uuid.uuid4()),
+                        text=chunk,
+                        meta_data=metadata,
+                        embedding=embedding,
+                        document_id=doc.id,
+                        chunk_index=i
+                    )
+                    db.add(emb)
+            else:
+                # Single chunk - use original method
+                for i, chunk in enumerate(chunks):
+                    logger.info(f"[{idx+1}/{len(docs)}] Processing chunk {i+1}/{len(chunks)} (length: {len(chunk)} chars)")
+                    
+                    embedding = indexer.get_embedding(chunk)
+                    metadata = build_metadata(doc, chunk, i)
+                    
+                    emb = Embedding(
+                        id=str(uuid.uuid4()),
+                        text=chunk,
+                        meta_data=metadata,
+                        embedding=embedding,
+                        document_id=doc.id,
+                        chunk_index=i
+                    )
+                    db.add(emb)
             
             logger.info(f"[{idx+1}/{len(docs)}] Marking document as indexed")
             doc.is_indexed = True
