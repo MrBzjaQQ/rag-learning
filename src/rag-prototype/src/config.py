@@ -12,11 +12,11 @@ class Settings:
     
     # OpenAI API
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
-    OPENAI_BASE_URL: str = os.getenv("OPENAI_BASE_URL", "http://localhost:8033/v1")
+    OPENAI_BASE_URL: str = os.getenv("OPENAI_BASE_URL", "http://host.docker.internal:8033/v1")
 
     # OpenAI API Embeddings
     OPENAI_API_KEY_EMBEDDINGS: str = os.getenv("OPENAI_API_KEY_EMBEDDINGS", "")
-    OPENAI_BASE_URL_EMBEDDINGS: str = os.getenv("OPENAI_BASE_URL_EMBEDDINGS", "http://localhost:8034/v1")
+    OPENAI_BASE_URL_EMBEDDINGS: str = os.getenv("OPENAI_BASE_URL_EMBEDDINGS", "http://host.docker.internal:8034/v1")
     
     # Llama.cpp
     LLAMA_CPP_MODEL_PATH: str = os.getenv("LLAMA_CPP_MODEL_PATH", "")

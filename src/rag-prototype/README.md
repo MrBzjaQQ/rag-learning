@@ -1,6 +1,14 @@
 # RAG Prototype
 
-A Retrieval-Augmented Generation (RAG) application prototype built with Python, FastAPI, PostgreSQL with pgvector extension.
+A Retrieval-Augmented Generation (RAG) application prototype built with Python, FastAPI, PostgreSQL with pgvector extension, and Angular 21 frontend.
+
+## Features
+
+- **Document Storage**: Store and manage documents (.txt, .pdf, .doc, .docx)
+- **Document Indexing**: Manual document indexing for semantic search
+- **Semantic Search**: Find relevant documents using cosine similarity
+- **RAG Context Expansion**: Expand LLM context with relevant document chunks
+- **Modern Web UI**: Minimalist Angular 21 interface with Markdown rendering
 
 ## Features
 
@@ -13,6 +21,15 @@ A Retrieval-Augmented Generation (RAG) application prototype built with Python, 
 
 ```
 src/rag-prototype/
+├── rag-ui/                  # Angular 21 frontend application
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── app.ts       # Main application component
+│   │   │   └── services/
+│   │   │       └── rag.service.ts
+│   │   └── main.ts          # Application entry point
+│   ├── angular.json         # Angular configuration
+│   └── package.json         # NPM dependencies
 ├── src/
 │   ├── __init__.py
 │   ├── main.py              # FastAPI application entry point
@@ -27,6 +44,7 @@ src/rag-prototype/
 │   └── services/
 │       ├── __init__.py
 │       └── indexer.py       # Indexing service with cosine similarity
+├── backend-static/          # Built Angular frontend (generated)
 ├── requirements.txt         # Python dependencies
 └── README.md
 ```
@@ -45,33 +63,48 @@ src/rag-prototype/
 ### Search (`/api/v1/search`)
 - `POST /documents` - Search for similar documents
 - `POST /rag` - Perform RAG query with context expansion
+- `POST /rag-answer` - Perform RAG query with full document context
+
+### File Management (`/api/v1/file`)
+- `POST /` - Upload a file
+- `GET /{fileId}` - Get file metadata
+- `GET /{fileId}/download` - Download a file
+- `DELETE /{fileId}` - Delete a file (idempotent)
 
 ## Setup
 
 ### Prerequisites
 
 - Python 3.9+
+- Node.js 20+ (for Angular frontend)
 - PostgreSQL with pgvector extension
 - OpenAI API key or local LLM (llama.cpp)
 
-### Installation
+### Local Development
 
 1. Clone the repository:
 ```bash
 cd src/rag-prototype
 ```
 
-2. Install dependencies:
+2. Install Python dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Create `.env` file from `.env.example`:
+3. Install frontend dependencies:
+```bash
+cd rag-ui
+npm install
+cd ..
+```
+
+4. Create `.env` file from `.env.example`:
 ```bash
 cp .env.example .env
 ```
 
-4. Configure environment variables in `.env`:
+5. Configure environment variables in `.env`:
 ```env
 DATABASE_URL=postgresql://user:password@localhost:5432/rag_db
 OPENAI_API_KEY=your_openai_api_key_here
@@ -81,17 +114,35 @@ APP_NAME="RAG Prototype"
 DEBUG=False
 ```
 
-5. Initialize the database:
+6. Initialize the database:
 ```python
 python -c "from src.database import init_db; init_db()"
 ```
 
-6. Run the application:
+7. Build the frontend:
+```bash
+cd rag-ui
+npm run build
+cd ..
+```
+
+8. Run the backend:
 ```bash
 uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-7. Access Swagger UI at http://localhost:8000/docs
+9. Access the application at http://localhost:8000 and Swagger UI at http://localhost:8000/docs
+
+### Docker Deployment
+
+1. Build and run with Docker Compose:
+```bash
+docker-compose up -d
+```
+
+2. The application will be available at http://localhost:8000
+
+3. The frontend is served from `/static` and accessible at the root URL
 
 ## Database Schema
 

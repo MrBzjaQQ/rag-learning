@@ -53,4 +53,18 @@ def get_db():
 
 def init_db():
     """Initialize database tables."""
+    from sqlalchemy import text
+    
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    if not DATABASE_URL:
+        raise ValueError("DATABASE_URL environment variable is required")
+    
+    engine = create_engine(DATABASE_URL, echo=False)
+    
+    # Create pgvector extension
+    with engine.connect() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        conn.commit()
+    
+    # Create tables
     Base.metadata.create_all(bind=engine)

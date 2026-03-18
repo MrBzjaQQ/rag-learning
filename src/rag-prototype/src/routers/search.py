@@ -85,6 +85,9 @@ def rag_answer(request: RAGRequest, db: Session = Depends(get_database_session))
         seen_document_ids = set()
         unique_documents = []
         
+        if not similar_docs:
+            return RAGResponse(answer="No relevant documents found in the database. Please upload and index documents first.", sources=[])
+        
         for doc in similar_docs:
             doc_id = doc.get("document_id")
             if doc_id and doc_id not in seen_document_ids:
@@ -115,9 +118,13 @@ def rag_answer(request: RAGRequest, db: Session = Depends(get_database_session))
 
 def generate_answer(query: str, context: str) -> str:
     """Generate answer using LLM with RAG context."""
+    from openai import OpenAI
+    
+    # Check if context is empty
+    if not context or context.strip() == "":
+        return "No relevant documents found in the database. Please upload and index documents first."
+    
     try:
-        from openai import OpenAI
-        
         client = OpenAI(
             api_key=settings.OPENAI_API_KEY,
             base_url=settings.OPENAI_BASE_URL
@@ -146,4 +153,8 @@ Answer:"""
         return response.choices[0].message.content.strip()
     
     except Exception as e:
-        return f"Error generating answer: {str(e)}"
+        error_msg = str(e)
+        # Check for connection errors
+        if "Connection" in error_msg or "connect" in error_msg.lower() or "timeout" in error_msg.lower():
+            return f"Connection error: Unable to connect to LLM endpoint. Please ensure the LLM service is running at {settings.OPENAI_BASE_URL} and the API key is correct."
+        return f"Error generating answer: {error_msg}"

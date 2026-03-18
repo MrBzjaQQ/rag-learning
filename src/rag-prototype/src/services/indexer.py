@@ -120,12 +120,20 @@ class Indexer:
             return [self._generate_tfidf_embedding(text) for text in texts]
     
     def _generate_tfidf_embedding(self, text: str) -> List[float]:
-        """Generate fallback TF-IDF based embedding."""
+        """Generate fallback TF-IDF based embedding with exactly 768 dimensions."""
         try:
             if not self.vectorizer_fitted:
                 self.fit_vectorizer([text])
             tfidf = self.vectorizer.transform([text])
-            return tfidf.toarray()[0].tolist()
+            embedding = tfidf.toarray()[0].tolist()
+            
+            # Pad or truncate to exactly 768 dimensions
+            if len(embedding) < 768:
+                embedding = embedding + [0.0] * (768 - len(embedding))
+            elif len(embedding) > 768:
+                embedding = embedding[:768]
+            
+            return embedding
         except Exception:
             # Return zero vector as last resort
             return [0.0] * 768
