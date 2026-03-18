@@ -35,8 +35,15 @@ interface FileSource {
                 class="query-input"
                 required
                 autocomplete="off"
+                [disabled]="loading()"
               />
-              <button type="submit" class="submit-button">Отправить</button>
+              <button type="submit" class="submit-button" [disabled]="loading()">
+                @if (loading()) {
+                  <span class="spinner"></span> Отправка...
+                } @else {
+                  Отправить
+                }
+              </button>
             </div>
           </form>
         } @else {
@@ -53,7 +60,14 @@ interface FileSource {
                   {{ copied() ? 'Скопировано' : 'Копировать' }}
                 </button>
               </div>
-              <div [innerHTML]="renderedAnswer()" class="answer-content"></div>
+              @if (loading()) {
+                <div class="loading-container">
+                  <span class="spinner"></span>
+                  <span class="loading-text">Генерация ответа...</span>
+                </div>
+              } @else {
+                <div [innerHTML]="renderedAnswer()" class="answer-content"></div>
+              }
             </div>
 
             @if (result()?.sources && result()?.sources.length > 0) {
@@ -147,8 +161,43 @@ interface FileSource {
       transition: background-color 0.2s;
     }
 
-    .submit-button:hover {
+    .submit-button:hover:not(:disabled) {
       background-color: #2980b9;
+    }
+
+    .submit-button:disabled {
+      background-color: #95a5a6;
+      cursor: not-allowed;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loading-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 32px;
+      background-color: white;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+    }
+
+    .loading-text {
+      color: #2c3e50;
+      font-size: 16px;
     }
 
     .result-container {
@@ -276,7 +325,7 @@ interface FileSource {
 
     .sources-list {
       list-style: none;
-      padding: 0;
+      padding-left: 0;
       margin: 0;
     }
 
@@ -316,32 +365,37 @@ export class App {
   private readonly ragService = inject(RAGService);
 
   protected query = signal('');
-  protected result = signal<null | { query: string; answer: string; sources: FileSource[] }>(null);
-  protected renderedAnswer = signal('');
-  protected copied = signal(false);
+   protected result = signal<null | { query: string; answer: string; sources: FileSource[] }>(null);
+   protected renderedAnswer = signal('');
+   protected copied = signal(false);
+   protected loading = signal(false);
 
   async onSubmit() {
-    const queryValue = this.query();
-    if (!queryValue.trim()) return;
+     const queryValue = this.query();
+     if (!queryValue.trim()) return;
 
-    try {
-      const response = await this.ragService.ragAnswer({
-        query: queryValue,
-        top_k: 8,
-        similarity_threshold: 0.05
-      }).toPromise();
+     this.loading.set(true);
 
-      this.result.set({
-        query: queryValue,
-        answer: response.answer,
-        sources: response.sources
-      });
+     try {
+       const response = await this.ragService.ragAnswer({
+         query: queryValue,
+         top_k: 8,
+         similarity_threshold: 0.05
+       }).toPromise();
 
-      this.renderedAnswer.set(marked.parse(response.answer) as string);
-    } catch (error) {
-      console.error('Error fetching RAG answer:', error);
-    }
-  }
+       this.result.set({
+         query: queryValue,
+         answer: response.answer,
+         sources: response.sources
+       });
+
+       this.renderedAnswer.set(marked.parse(response.answer) as string);
+     } catch (error) {
+       console.error('Error fetching RAG answer:', error);
+     } finally {
+       this.loading.set(false);
+     }
+   }
 
   copyAnswer() {
     const answerText = this.result()?.answer || '';
@@ -370,9 +424,10 @@ export class App {
     });
   }
 
-  reset() {
-    this.query.set('');
-    this.result.set(null);
-    this.renderedAnswer.set('');
-  }
+ reset() {
+     this.query.set('');
+     this.result.set(null);
+     this.renderedAnswer.set('');
+     this.loading.set(false);
+   }
 }

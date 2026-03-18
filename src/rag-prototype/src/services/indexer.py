@@ -1,10 +1,13 @@
 """Document indexing service with batch processing for improved performance."""
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+from sqlalchemy.orm import Session
+from pgvector.sqlalchemy import Vector
 
 from src.config import settings
+from src.database import Embedding, get_db
 
 
 class Indexer:
@@ -17,7 +20,7 @@ class Indexer:
     """
     
     def __init__(self):
-        # Initialize vectorizer once for all operations
+        # Initialize vectorizer once for all operations (kept for potential text-based fallback)
         self.vectorizer = TfidfVectorizer(
             stop_words='english',
             use_idf=True,
@@ -88,6 +91,10 @@ class Indexer:
             # Fallback to TF-IDF based embedding
             return self._generate_tfidf_embedding(text)
     
+    def query_to_embedding(self, query: str) -> List[float]:
+        """Convert query text to embedding vector."""
+        return self.get_embedding(query)
+    
     def get_embeddings_batch(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings for multiple texts in batch (more efficient)."""
         try:
@@ -138,29 +145,32 @@ class Indexer:
             # Return zero vector as last resort
             return [0.0] * 768
     
-    def find_similar(self, query: str, embeddings: List[Any], threshold: float = 0.75, top_k: int = 5) -> List[Dict[str, Any]]:
-        """Find similar documents based on cosine similarity."""
-        # Fit vectorizer on all embedding texts first
-        if not self.vectorizer_fitted:
-            all_texts = [emb.text for emb in embeddings]
-            if all_texts:
-                self.fit_vectorizer(all_texts)
-        
-        results = []
-        
-        for emb in embeddings:
-            # Calculate similarity
-            similarity = self.calculate_cosine_similarity(query, emb.text)
+    def find_similar(self, query: str, embeddings: Optional[List[Any]] = None, threshold: float = 0.75, top_k: int = 5) -> List[Dict[str, Any]]:
+        """Find similar documents based on cosine similarity using database vector search."""
+        db = next(get_db())
+        try:
+            query_embedding = self.query_to_embedding(query)
             
-            if similarity >= threshold:
-                results.append({
+            results = db.query(Embedding).order_by(
+                Embedding.embedding.cosine_distance(query_embedding)
+            ).limit(top_k).all()
+            
+            search_results = []
+            for emb in results:
+                emb_array = np.array(emb.embedding)
+                query_array = np.array(query_embedding)
+                
+                cosine_sim = float(np.dot(emb_array, query_array) / (np.linalg.norm(emb_array) * np.linalg.norm(query_array)))
+                
+                search_results.append({
                     "text": emb.text,
                     "metadata": emb.meta_data,
-                    "score": similarity,
+                    "score": cosine_sim,
                     "document_id": emb.document_id,
                     "chunk_index": emb.chunk_index
                 })
+            
+            return search_results
         
-        # Sort by score and return top_k
-        results.sort(key=lambda x: x["score"], reverse=True)
-        return results[:top_k]
+        finally:
+            db.close()

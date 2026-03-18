@@ -64,6 +64,17 @@ def init_db():
     # Create pgvector extension
     with engine.connect() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        
+        # Create vector index for efficient similarity search
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS embeddings_embedding_idx ON embeddings 
+            USING ivfflat (embedding vector_cosine_ops) 
+            WITH (lists = 100)
+        """))
+        
+        # Create additional indexes
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_embeddings_document_id ON embeddings(document_id)"))
+        
         conn.commit()
     
     # Create tables

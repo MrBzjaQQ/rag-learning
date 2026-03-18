@@ -24,13 +24,9 @@ def search_documents(request: SearchRequest, db: Session = Depends(get_database_
     try:
         indexer = Indexer()
         
-        # Get all embeddings from database
-        embeddings = db.query(Embedding).all()
-        
-        # Find similar documents
+        # Find similar documents using database vector search
         results = indexer.find_similar(
             query=request.query,
-            embeddings=embeddings,
             threshold=request.similarity_threshold or settings.SIMILARITY_THRESHOLD,
             top_k=request.top_k or settings.TOP_K_RESULTS
         )
@@ -46,11 +42,8 @@ def rag_query(request: RAGRequest, db: Session = Depends(get_database_session)):
     try:
         indexer = Indexer()
         
-        # Get relevant documents
-        embeddings = db.query(Embedding).all()
         similar_docs = indexer.find_similar(
             query=request.query,
-            embeddings=embeddings,
             threshold=request.similarity_threshold or settings.SIMILARITY_THRESHOLD,
             top_k=request.top_k or settings.TOP_K_RESULTS
         )
@@ -72,11 +65,8 @@ def rag_answer(request: RAGRequest, db: Session = Depends(get_database_session))
     try:
         indexer = Indexer()
         
-        # Get relevant documents
-        embeddings = db.query(Embedding).all()
         similar_docs = indexer.find_similar(
             query=request.query,
-            embeddings=embeddings,
             threshold=request.similarity_threshold or settings.SIMILARITY_THRESHOLD,
             top_k=request.top_k or settings.TOP_K_RESULTS
         )
