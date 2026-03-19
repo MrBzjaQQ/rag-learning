@@ -51,7 +51,7 @@ interface FileSource {
             </div>
             <div class="input-row">
               <div class="input-wrapper">
-                <label class="input-label" for="topK">Top K</label>
+                <label class="input-label" for="topK">Количество наиболее подходящих результатов</label>
                 <input
                   type="number"
                   id="topK"
@@ -64,7 +64,7 @@ interface FileSource {
                 />
               </div>
               <div class="input-wrapper">
-                <label class="input-label" for="similarityThreshold">Threshold</label>
+                <label class="input-label" for="similarityThreshold">Порог совпадения (косинус угла, от 0 до 1)</label>
                 <input
                   type="number"
                   id="similarityThreshold"
