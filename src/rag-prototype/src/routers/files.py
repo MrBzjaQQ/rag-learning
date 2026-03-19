@@ -6,6 +6,8 @@ from typing import List
 import uuid
 import os
 import shutil
+import zipfile
+import io
 
 from src.config import settings
 from src.database import get_db, Document
@@ -25,6 +27,59 @@ UPLOAD_DIR = "uploads"
 
 # Create upload directory if it doesn't exist
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+@router.post("/upload-zip", response_model=List[FileResponse], status_code=status.HTTP_201_CREATED)
+async def upload_zip_archive(zip_file: UploadFile = File(...), db: Session = Depends(get_database_session)):
+    """Upload and extract files from a ZIP archive."""
+    uploaded_files = []
+    
+    try:
+        zip_content = await zip_file.read()
+        
+        with zipfile.ZipFile(io.BytesIO(zip_content)) as zf:
+            for member in zf.infolist():
+                if member.is_dir():
+                    continue
+                
+                file_id = str(uuid.uuid4())
+                
+                extension = os.path.splitext(member.filename)[1]
+                safe_filename = f"{file_id}{extension}"
+                
+                file_path = os.path.join(UPLOAD_DIR, safe_filename)
+                
+                with zf.open(member) as source, open(file_path, "wb") as target:
+                    shutil.copyfileobj(source, target)
+                
+                doc = Document(
+                    id=file_id,
+                    filename=member.filename,
+                    file_type=member.filename.split('.')[-1].lower() if '.' in member.filename else "application/octet-stream",
+                    file_size=os.path.getsize(file_path),
+                    content_path=file_path,
+                    is_indexed=False
+                )
+                
+                db.add(doc)
+                uploaded_files.append(FileResponse(
+                    id=doc.id,
+                    filename=doc.filename,
+                    file_type=doc.file_type,
+                    file_size=doc.file_size,
+                    creation_date=doc.creation_date,
+                    last_modified_date=doc.last_modified_date,
+                    content_path=doc.content_path
+                ))
+        
+        db.commit()
+        
+        return uploaded_files
+    except zipfile.BadZipFile:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid ZIP archive")
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error processing ZIP archive: {str(e)}")
 
 @router.post("/", response_model=List[FileResponse], status_code=status.HTTP_201_CREATED)
 async def upload_files(files: List[UploadFile] = File(...), db: Session = Depends(get_database_session)):

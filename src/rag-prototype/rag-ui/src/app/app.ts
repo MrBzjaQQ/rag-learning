@@ -5,13 +5,13 @@ import { marked } from 'marked';
 import { RAGService } from './services/rag.service';
 
 interface FileSource {
-  id: string;
-  filename: string;
-  file_type: string;
-  file_size: number;
-  creation_date?: string;
-  last_modified_date?: string;
-  content_path?: string;
+  text: string,
+  score: number,
+  document_id: string,
+  chunk_index: number,
+  metadata: {
+    file_name: string
+  }
 }
 
 @Component({
@@ -26,17 +26,21 @@ interface FileSource {
       <main class="main">
         @if (!result()) {
           <form class="query-form" (ngSubmit)="onSubmit()">
-            <div class="input-group">
-              <input
-                type="text"
-                [(ngModel)]="query"
-                name="query"
-                placeholder="Введите ваш запрос..."
-                class="query-input"
-                required
-                autocomplete="off"
-                [disabled]="loading()"
-              />
+            <div class="input-row">
+              <div class="input-wrapper wide">
+                <label class="input-label" for="query">Запрос</label>
+                <input
+                  type="text"
+                  id="query"
+                  [(ngModel)]="query"
+                  name="query"
+                  placeholder="Введите ваш запрос..."
+                  class="query-input"
+                  required
+                  autocomplete="off"
+                  [disabled]="loading()"
+                />
+              </div>
               <button type="submit" class="submit-button" [disabled]="loading()">
                 @if (loading()) {
                   <span class="spinner"></span> Отправка...
@@ -44,6 +48,36 @@ interface FileSource {
                   Отправить
                 }
               </button>
+            </div>
+            <div class="input-row">
+              <div class="input-wrapper">
+                <label class="input-label" for="topK">Top K</label>
+                <input
+                  type="number"
+                  id="topK"
+                  [(ngModel)]="topK"
+                  name="topK"
+                  class="parameter-input"
+                  min="1"
+                  placeholder="5"
+                  [disabled]="loading()"
+                />
+              </div>
+              <div class="input-wrapper">
+                <label class="input-label" for="similarityThreshold">Threshold</label>
+                <input
+                  type="number"
+                  id="similarityThreshold"
+                  [(ngModel)]="similarityThreshold"
+                  name="similarityThreshold"
+                  class="parameter-input"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  placeholder="0.1"
+                  [disabled]="loading()"
+                />
+              </div>
             </div>
           </form>
         } @else {
@@ -74,14 +108,14 @@ interface FileSource {
               <div class="sources-section">
                 <span class="label">Источники:</span>
                 <ul class="sources-list">
-                  @for (source of result()?.sources; track source.id) {
+                  @for (source of result()?.sources || []; track source.chunk_index) {
                     <li class="source-item">
                       <a
-                        [href]="'/api/v1/file/' + source.id"
-                        (click)="onFileClick($event, source.id, source.filename)"
+                        [href]="'/api/v1/file/' + source.document_id"
+                        (click)="onFileClick($event, source.document_id, source.metadata.file_name)"
                         class="source-link"
                       >
-                        {{ source.filename }}
+                        {{ source.metadata.file_name }}
                       </a>
                     </li>
                   }
@@ -131,13 +165,18 @@ interface FileSource {
       max-width: 800px;
     }
 
-    .input-group {
+    .input-row {
       display: flex;
       gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .wide {
+      flex: 1;
     }
 
     .query-input {
-      flex: 1;
+      width: 100%;
       padding: 14px 16px;
       font-size: 16px;
       border: 1px solid #ddd;
@@ -147,6 +186,33 @@ interface FileSource {
     }
 
     .query-input:focus {
+      border-color: #3498db;
+    }
+
+    .input-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .input-label {
+      font-size: 12px;
+      color: #7f8c8d;
+      font-weight: 500;
+    }
+
+    .parameter-input {
+      width: 80px;
+      padding: 14px 8px;
+      font-size: 16px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      outline: none;
+      text-align: center;
+      transition: border-color 0.2s;
+    }
+
+    .parameter-input:focus {
       border-color: #3498db;
     }
 
@@ -365,37 +431,42 @@ export class App {
   private readonly ragService = inject(RAGService);
 
   protected query = signal('');
-   protected result = signal<null | { query: string; answer: string; sources: FileSource[] }>(null);
-   protected renderedAnswer = signal('');
-   protected copied = signal(false);
-   protected loading = signal(false);
+  protected result = signal<null | { query: string; answer: string; sources: FileSource[] }>(null);
+  protected renderedAnswer = signal('');
+  protected copied = signal(false);
+  protected loading = signal(false);
+  protected topK = signal(5);
+  protected similarityThreshold = signal(0.1);
 
   async onSubmit() {
-     const queryValue = this.query();
-     if (!queryValue.trim()) return;
+    const queryValue = this.query();
+    if (!queryValue.trim()) return;
 
-     this.loading.set(true);
+    const topKValue = this.topK();
+    const similarityThresholdValue = this.similarityThreshold();
 
-     try {
-       const response = await this.ragService.ragAnswer({
-         query: queryValue,
-         top_k: 8,
-         similarity_threshold: 0.05
-       }).toPromise();
+    this.loading.set(true);
 
-       this.result.set({
-         query: queryValue,
-         answer: response.answer,
-         sources: response.sources
-       });
+    try {
+      const response = await this.ragService.ragAnswer({
+        query: queryValue,
+        top_k: topKValue,
+        similarity_threshold: similarityThresholdValue
+      }).toPromise();
 
-       this.renderedAnswer.set(marked.parse(response.answer) as string);
-     } catch (error) {
-       console.error('Error fetching RAG answer:', error);
-     } finally {
-       this.loading.set(false);
-     }
-   }
+      this.result.set({
+        query: queryValue,
+        answer: response.answer,
+        sources: response.sources
+      });
+
+      this.renderedAnswer.set(marked.parse(response.answer) as string);
+    } catch (error) {
+      console.error('Error fetching RAG answer:', error);
+    } finally {
+      this.loading.set(false);
+    }
+  }
 
   copyAnswer() {
     const answerText = this.result()?.answer || '';
@@ -424,10 +495,12 @@ export class App {
     });
   }
 
- reset() {
-     this.query.set('');
-     this.result.set(null);
-     this.renderedAnswer.set('');
-     this.loading.set(false);
-   }
+  reset() {
+    this.query.set('');
+    this.result.set(null);
+    this.renderedAnswer.set('');
+    this.loading.set(false);
+    this.topK.set(5);
+    this.similarityThreshold.set(0.1);
+  }
 }

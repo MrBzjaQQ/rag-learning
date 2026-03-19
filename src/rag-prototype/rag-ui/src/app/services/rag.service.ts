@@ -11,13 +11,13 @@ export interface RAGRequest {
 export interface RAGResponse {
   answer: string;
   sources: Array<{
-    id: string;
-    filename: string;
-    file_type: string;
-    file_size: number;
-    creation_date?: string;
-    last_modified_date?: string;
-    content_path?: string;
+    text: string,
+    score: number,
+    document_id: string,
+    chunk_index: number,
+    metadata: {
+      file_name: string
+    }
   }>;
 }
 
