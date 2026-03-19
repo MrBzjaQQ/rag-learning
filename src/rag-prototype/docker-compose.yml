@@ -26,16 +26,36 @@ services:
       - "8010:8000"
     environment:
       DATABASE_URL: postgresql://raguser:ragpassword@postgres:5432/ragdb
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-your-openai-api-key}
-      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
-      OPENAI_API_KEY_EMBEDDINGS: ${OPENAI_API_KEY_EMBEDDINGS:-your-openai-api-key}
-      OPENAI_BASE_URL_EMBEDDINGS: ${OPENAI_BASE_URL_EMBEDDINGS:-https://api.openai.com/v1}
+      OPENAI_API_KEY: none
+      OPENAI_BASE_URL: http://host.docker.internal:8033/v1
+      OPENAI_API_KEY_EMBEDDINGS: none
+      OPENAI_BASE_URL_EMBEDDINGS: http://host.docker.internal:8034/v1
     depends_on:
       postgres:
         condition: service_healthy
     restart: unless-stopped
     volumes:
       - ./uploads:/app/uploads
+
+
+  embedding-model:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    container_name: nomic-ai-embedding
+    privileged: true
+    restart: always
+    volumes:
+      - D:\\.lmstudio\\models\\nomic-ai\\nomic-embed-text-v2-moe-GGUF:/models
+    ports:
+      - "8034:8034"
+    command: |
+      -m "/models/nomic-embed-text-v2-moe.Q8_0.gguf"
+      --jinja
+      --flash-attn 1
+      --fit on
+      --port 8034
+      --no-mmap
+      --offline
+      --embeddings
 
 volumes:
   postgres_data:
