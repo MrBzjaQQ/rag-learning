@@ -74,25 +74,6 @@ interface FileSource {
               }
             </div>
 
-            @if (result()?.sources && result()?.sources.length > 0) {
-              <div class="sources-section">
-                <span class="label">Источники:</span>
-                <ul class="sources-list">
-                  @for (source of result()?.sources || []; track source.chunk_index) {
-                    <li class="source-item">
-                      <a
-                        [href]="'/api/v1/file/' + source.document_id"
-                        (click)="onFileClick($event, source.document_id, source.metadata.file_name)"
-                        class="source-link"
-                      >
-                        {{ source.metadata.file_name }}
-                      </a>
-                    </li>
-                  }
-                </ul>
-              </div>
-            }
-
             <button class="new-query-button" (click)="reset()" type="button">
               Новый запрос
             </button>
@@ -401,7 +382,7 @@ export class App {
   private readonly ragService = inject(RAGService);
 
   protected query = signal('');
-  protected result = signal<null | { query: string; answer: string; sources: FileSource[] }>(null);
+  protected result = signal<null | { query: string; answer: string; }>(null);
   protected renderedAnswer = signal('');
   protected copied = signal(false);
   protected loading = signal(false);
@@ -419,8 +400,7 @@ export class App {
 
       this.result.set({
         query: queryValue,
-        answer: response.answer,
-        sources: response.sources
+        answer: response.answer
       });
 
       this.renderedAnswer.set(marked.parse(response.answer) as string);

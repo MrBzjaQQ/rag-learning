@@ -14,10 +14,7 @@ export interface RAGResponse {
     text: string,
     score: number,
     document_id: string,
-    chunk_index: number,
-    metadata: {
-      file_name: string
-    }
+    chunk_index: number
   }>;
 }
 

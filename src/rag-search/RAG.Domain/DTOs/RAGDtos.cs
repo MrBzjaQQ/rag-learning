@@ -4,7 +4,7 @@ public class RAGRequest
 {
     public string Query { get; set; }
     public int TopK { get; set; } = 5;
-    public float SimilarityThreshold { get; set; } = 0.75f;
+    public float SimilarityThreshold { get; set; } = 0;
 }
 
 public class RAGResponse
