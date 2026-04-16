@@ -54,8 +54,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 
-COPY --from=publish /app/publish ./app
-COPY --from=ui-builder /app/ui/dist/rag-ui/browser ./app/wwwroot
+COPY --from=publish /app/publish /app
+COPY --from=ui-builder /app/ui/dist/rag-ui/browser /app/wwwroot
 
 RUN chown -R appuser:appgroup /app
 
@@ -66,4 +66,4 @@ EXPOSE 8080
 ENV ASPNETCORE_URLS=http://+:8080
 ENV ASPNETCORE_ENVIRONMENT=Production
 
-CMD ["dotnet", "app/RAG.Api.dll"]
+CMD ["dotnet", "RAG.Api.dll"]

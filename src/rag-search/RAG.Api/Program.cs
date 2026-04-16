@@ -77,6 +77,7 @@ builder.Services.AddHttpClient<IChatClient, OpenAIChatClient>(client =>
 {
     var options = builder.Configuration.GetSection(LLMOptions.SectionName).Get<LLMOptions>();
     client.BaseAddress = new Uri(options.BaseUrl);
+    client.Timeout = TimeSpan.FromSeconds(6000);
 });
 
 // Reranking service
@@ -84,6 +85,7 @@ builder.Services.AddHttpClient<IRerankingService, RerankingService>(client =>
 {
     var options = builder.Configuration.GetSection(LLMOptions.SectionName).Get<LLMOptions>();
     client.BaseAddress = new Uri(options.BaseUrl);
+    client.Timeout = TimeSpan.FromSeconds(6000);
 });
 
 // RAG Orchestrator
@@ -97,14 +99,12 @@ builder.Services.Configure<RerankerOptions>(builder.Configuration.GetSection(Rer
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "RAG API v1");
-    });
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "RAG API v1");
+});
+
 
 app.UseHttpsRedirection();
 
