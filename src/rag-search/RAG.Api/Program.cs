@@ -111,12 +111,16 @@ app.UseHttpsRedirection();
 // CORS
 app.UseCors("AngularCors");
 
+app.UseStaticFiles();
+app.UseDefaultFiles();
+
 app.UseAuthorization();
 
 app.MapControllers();
 
-// Health Check endpoint
 app.MapHealthChecks("/health");
+
+app.MapFallbackToFile("index.html");
 
 using (var scope = app.Services.CreateScope())
 {
