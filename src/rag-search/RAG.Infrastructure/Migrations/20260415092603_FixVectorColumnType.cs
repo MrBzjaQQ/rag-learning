@@ -10,7 +10,6 @@ namespace RAG.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.Sql("CREATE EXTENSION IF NOT EXISTS vector;");
             migrationBuilder.Sql("ALTER TABLE \"Embeddings\" ALTER COLUMN vector TYPE vector USING vector::vector");
         }
 

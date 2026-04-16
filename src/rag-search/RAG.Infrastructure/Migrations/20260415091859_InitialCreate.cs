@@ -10,6 +10,7 @@ namespace RAG.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql("CREATE EXTENSION IF NOT EXISTS vector;");
             migrationBuilder.Sql("CREATE EXTENSION IF NOT EXISTS pg_trgm;");
             migrationBuilder.CreateTable(
                 name: "Documents",
